@@ -60,7 +60,7 @@ Le dossier `benchmark/` compare ces stratégies sur des lots de grottes génér�
 
 ## 3. Apprentissage par renforcement (ma partie)
 
-En tant que responsable du RL, j'ai formulé l'exploration comme un **processus de décision markovien** et construit toute la chaîne d'apprentissage, de l'environnement à l'évaluation de l'agent.
+L'objectif de cette partie est l'inverse des stratégies précédentes : **aucun algorithme d'exploration n'est codé à la main**, le drone doit découvrir lui-même sa stratégie à partir de la seule récompense. En tant que responsable du RL, j'ai formulé l'exploration comme un **processus de décision markovien** et construit toute la chaîne d'apprentissage, de l'environnement à l'évaluation de l'agent.
 
 **Environnement `TunnelExploreEnv` (Gymnasium)** : un drone dans un tunnel en grille, dont la mission n'est pas d'atteindre une sortie mais de **couvrir toute la zone accessible**.
 
@@ -79,7 +79,7 @@ En tant que responsable du RL, j'ai formulé l'exploration comme un **processus 
 4. Entraînement **PPO** avec Stable-Baselines3 : `CnnPolicy` sur l'observation image et `MultiInputPolicy` sur l'observation composée, avec un **extracteur de caractéristiques CNN sur mesure** en PyTorch, adapté aux petites grilles.
 5. Évaluation séparée des modèles sauvegardés et scripts d'inspection qui affichent, pas à pas, l'action, la récompense et le pourcentage exploré.
 
-Le travail RL a été mené sur une branche Git dédiée, isolée du reste du projet, pour expérimenter sans casser la simulation principale. La stratégie Pledge sert de point de comparaison explicable face à l'agent appris.
+Le travail RL a été mené sur une branche Git dédiée, isolée du reste du projet, pour expérimenter sans casser la simulation principale. Les stratégies codées à la main par l'équipe (Trémaux, Pledge, etc.) servent de points de comparaison face à l'agent appris.
 
 ## Qualité logicielle
 
