@@ -1,0 +1,15 @@
+# RL-specific dependencies.
+# We reuse the main project requirements to avoid duplicating shared packages.
+# This RL stack stays isolated in reinforcement_learning/ and should not
+# interfere with the rest of the PIR project.
+
+-r ../requirements.txt
+
+# Core RL environment API.
+gymnasium
+
+# Useful to validate the installation on a known environment.
+minigrid
+
+# Needed for check_env and the optional PPO baseline script.
+stable-baselines3

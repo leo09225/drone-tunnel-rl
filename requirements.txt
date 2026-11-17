@@ -1,0 +1,10 @@
+mesa[viz]
+numpy
+python-statemachine
+networkx
+pydot
+matplotlib
+ruff
+pyright
+bandit
+pytest
