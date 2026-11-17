@@ -1,4 +1,14 @@
 import random
+from generation.config import (
+    TUNNEL_CONTINUITY_PROBA,
+    BIRTH_CORNER_PROBA,
+    ENABLE_BIRTH_CONTINUITY,
+    ENABLE_BIRTH_CORNER,
+    MIN_ALIVE_NEIGHBORS,
+    ENABLE_DIGGER,
+    DIGGER_PROBA,
+    ENABLE_DRAUGHTBOARD,
+)
 
 
 def is_alive(grid, x, y):
@@ -51,12 +61,41 @@ def creates_square(grid, x, y):
     return False
 
 
+def create_diagonales(grid, x, y):
+    up_left = is_alive(grid, x - 1, y - 1)
+    up_right = is_alive(grid, x - 1, y + 1)
+    down_left = is_alive(grid, x + 1, y - 1)
+    down_right = is_alive(grid, x + 1, y + 1)
+
+    up = is_alive(grid, x - 1, y)
+    down = is_alive(grid, x + 1, y)
+    left = is_alive(grid, x, y - 1)
+    right = is_alive(grid, x, y + 1)
+
+    if up_left and not up and not left:
+        return True
+
+    if up_right and not up and not right:
+        return True
+
+    if down_left and not down and not left:
+        return True
+
+    if down_right and not down and not right:
+        return True
+
+    return False
+
+
 def tunnel_continuity(x, y, grid):
     """
     Vérifie si la case morte (x, y) prolonge naturellement un tunnel.
     Les motifs sont évalués de manière sûre sur toute la grille, y compris au bord.
     """
     if is_alive(grid, x, y):
+        return False
+
+    if not ENABLE_BIRTH_CONTINUITY:
         return False
 
     up = is_alive(grid, x - 1, y)
@@ -81,6 +120,19 @@ def tunnel_continuity(x, y, grid):
     )
 
 
+def draughtboard_pattern(grid, x, y):
+
+    if not ENABLE_DRAUGHTBOARD:
+        return False
+
+    up_left = is_alive(grid, x - 1, y - 1)
+    up_right = is_alive(grid, x - 1, y + 1)
+    down_left = is_alive(grid, x + 1, y - 1)
+    down_right = is_alive(grid, x + 1, y + 1)
+
+    return down_right and down_left and up_right and up_left
+
+
 def birth_corner(grid, x, y):
     """
     Retourne True si la case (x, y) peut devenir un tunnel
@@ -95,6 +147,9 @@ def birth_corner(grid, x, y):
     if is_alive(grid, x, y):
         return False
 
+    if not ENABLE_BIRTH_CORNER:
+        return False
+
     up = is_alive(grid, x - 1, y)
     down = is_alive(grid, x + 1, y)
     left = is_alive(grid, x, y - 1)
@@ -103,7 +158,7 @@ def birth_corner(grid, x, y):
     return (up and left) or (left and down) or (down and right) or (right and up)
 
 
-def has_six_or_more_alive_neighbors(grid, x, y):
+def has_enough_alive_neighbors(grid, x, y):
     """
     Vérifie si la cellule (x, y) a 6 voisins ou plus qui sont vivants.
     """
@@ -120,7 +175,42 @@ def has_six_or_more_alive_neighbors(grid, x, y):
         ]
     )
 
-    return alive_neighbors >= 6  # Retourne True si 6 ou plus de voisins sont vivants
+    return (
+        alive_neighbors >= MIN_ALIVE_NEIGHBORS
+    )  ## Nombre minimum de voisins vivants pour activer la règle  # Retourne True si 6 ou plus de voisins sont vivants
+
+
+def digger(grid, x, y):
+    # La cellule testée doit être un mur
+    if is_alive(grid, x, y):
+        return False
+
+    if not ENABLE_DIGGER:
+        return False
+
+    up = is_alive(grid, x - 1, y)
+    down = is_alive(grid, x + 1, y)
+    left = is_alive(grid, x, y - 1)
+    right = is_alive(grid, x, y + 1)
+
+    up_left = is_alive(grid, x - 1, y - 1)
+    up_right = is_alive(grid, x - 1, y + 1)
+    down_left = is_alive(grid, x + 1, y - 1)
+    down_right = is_alive(grid, x + 1, y + 1)
+
+    if up and not up_left and not up_right and not left and not right:
+        return True
+
+    if down and not down_left and not down_right and not left and not right:
+        return True
+
+    if left and not up_left and not down_left and not up and not down:
+        return True
+
+    if right and not up_right and not down_right and not up and not down:
+        return True
+
+    return False
 
 
 def should_birth(grid, x, y):
@@ -130,16 +220,24 @@ def should_birth(grid, x, y):
     if creates_square(grid, x, y):
         return False
 
-    if has_six_or_more_alive_neighbors(grid, x, y):
+    if has_enough_alive_neighbors(grid, x, y):
+        return False
+
+    if create_diagonales(grid, x, y):
         return False
 
     # priorité aux lignes droites
-    if tunnel_continuity(x, y, grid):
+    if draughtboard_pattern(grid, x, y):
         return True
+    if tunnel_continuity(x, y, grid):
+        return random.random() < TUNNEL_CONTINUITY_PROBA
 
     # virages rares
     if birth_corner(grid, x, y):
-        return random.random() < 0.3
+        return random.random() < BIRTH_CORNER_PROBA
+
+    if digger(grid, x, y):
+        return random.random() < DIGGER_PROBA
 
     return False
 

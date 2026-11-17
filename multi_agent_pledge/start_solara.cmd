@@ -3,7 +3,7 @@ setlocal
 
 set "ROOT=%~dp0.."
 set "PYTHON=%ROOT%\.venv\Scripts\python.exe"
-set "APP=%ROOT%\multi_agent\app.py"
+set "APP=%ROOT%\multi_agent_pledge\app.py"
 set "SOLARA_HOME=%ROOT%\.solara_local"
 
 if not exist "%PYTHON%" (

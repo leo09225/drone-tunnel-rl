@@ -52,7 +52,7 @@ def main() -> None:
         "--env",
         type=str,
         default="maze_pledge_02_island.csv",
-        help="Nom du fichier CSV dans multi_agent/envs/",
+        help="Nom du fichier CSV dans multi_agent_pledge/envs/",
     )
 
     parser.add_argument(

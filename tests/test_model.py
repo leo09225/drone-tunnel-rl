@@ -1,10 +1,4 @@
-import os
-import sys
-
-# Add multi_agent to path so we can import model
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "multi_agent"))
-
-from model import Vortex
+from multi_agent.model import Vortex
 
 
 def test_vortex_model_steps():

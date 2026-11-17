@@ -1,4 +1,5 @@
 from generation.generator import generation_tunnel
+from generation.config import TARGET_LOOPS
 
 
 def test_no_full_2x2():
@@ -57,3 +58,51 @@ def test_connected_tunnel():
         total_tunnel = sum(cell.state for row in grid for cell in row)
 
         assert len(visited) == total_tunnel, "Le tunnel n'est pas entièrement connecté"
+
+
+def count_loops(grid):
+    """
+    Compte le nombre de boucles dans le tunnel.
+
+    Pour un graphe non orienté connecté :
+    nombre de boucles = E - V + 1
+    """
+    vertices = 0
+    edges = 0
+
+    height = len(grid)
+    width = len(grid[0])
+
+    for i in range(height):
+        for j in range(width):
+            if grid[i][j].state:
+                vertices += 1
+
+                # compter uniquement droite et bas pour éviter les doublons
+                for di, dj in [(1, 0), (0, 1)]:
+                    ni, nj = i + di, j + dj
+                    if 0 <= ni < height and 0 <= nj < width:
+                        if grid[ni][nj].state:
+                            edges += 1
+
+    if vertices == 0:
+        return 0
+
+    return edges - vertices + 1
+
+
+def test_agent_constrained_target_loops():
+    grid = generation_tunnel(
+        method="agent",
+        agent_mode="constrained",
+        view=False,
+        save=False,
+        verbose=False,
+        animation=False,
+    )
+
+    nb_loops = count_loops(grid)
+
+    assert nb_loops == TARGET_LOOPS, (
+        f"Mode constrained : {nb_loops} boucles générées au lieu de {TARGET_LOOPS}"
+    )

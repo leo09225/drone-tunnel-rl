@@ -70,7 +70,7 @@ def check_death(x, y, grid):
     if len(alive) == 0:
         return True
 
-    if len(alive) >= 6:
+    if len(alive) >= 5:
         return True
 
     diagonal_neighbors = {"NE", "NW", "SE", "SW"}

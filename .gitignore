@@ -1,8 +1,5 @@
 settings.json
 __pycache__/
 *.csv
-.solara_local/
-reinforcement_learning/models/
-reinforcement_learning/logs/
-reinforcement_learning/runs/
-reinforcement_learning/videos/
+*.log
+*.xlsx

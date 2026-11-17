@@ -1,15 +1,16 @@
-# 🚁 Exploration de tunnels par drones — Reinforcement Learning
+# 🚁 Exploration de tunnels par une flotte de drones
 
-> Comment un drone peut-il explorer seul un tunnel inconnu ? Ce projet de recherche compare des stratégies d'exploration classiques (algorithmes déterministes, systèmes multi-agents) à une approche par **apprentissage par renforcement**, pour laquelle j'ai conçu l'environnement d'apprentissage et le **système de récompense** du drone.
+> Projet de recherche : générer des réseaux de grottes réalistes, puis comparer des stratégies d'exploration autonome pour des drones, des algorithmes déterministes aux systèmes multi-agents, jusqu'à l'**apprentissage par renforcement**.
 
-Projet d'Initiation à la Recherche (PIR, sujet 13 : *Proposition et évaluation de stratégies pour l'exploration de tunnels avec des drones*), 3ᵉ année Télécommunications, INSA Lyon, 2026. Projet d'équipe ; je pilotais la partie reinforcement learning.
+Projet d'Initiation à la Recherche (PIR, sujet 13 : *Proposition et évaluation de stratégies pour l'exploration de tunnels avec des drones*), 3ᵉ année Télécommunications, INSA Lyon, 2026. Projet d'équipe, dans lequel j'étais **responsable de la partie apprentissage par renforcement**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
-![Gymnasium](https://img.shields.io/badge/Gymnasium-RL%20env-0081A5)
-![Stable-Baselines3](https://img.shields.io/badge/Stable--Baselines3-PPO-EE4C2C)
-![MiniGrid](https://img.shields.io/badge/MiniGrid-2D%20grid-6f42c1)
 ![Mesa](https://img.shields.io/badge/Mesa-multi--agent-2E7D32)
-![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![Gymnasium](https://img.shields.io/badge/Gymnasium-RL-0081A5)
+![MiniGrid](https://img.shields.io/badge/MiniGrid-2D%20grid-6f42c1)
+![Stable-Baselines3](https://img.shields.io/badge/Stable--Baselines3-PPO-EE4C2C)
+![PyTorch](https://img.shields.io/badge/PyTorch-CNN-EE4C2C?logo=pytorch&logoColor=white)
+![CI](https://img.shields.io/badge/CI-Ruff%20%2B%20pytest-2088FF?logo=githubactions&logoColor=white)
 
 ---
 
@@ -17,92 +18,123 @@ Projet d'Initiation à la Recherche (PIR, sujet 13 : *Proposition et évaluation
 
 | | |
 |---|---|
-| **Contexte** | Tunnels, mines, réseaux souterrains : des lieux sans GPS, mal cartographiés et dangereux pour l'humain, où des drones autonomes doivent explorer seuls. |
-| **Question de recherche** | Quelle stratégie permet à un drone (ou une flotte) de couvrir un tunnel inconnu le plus efficacement possible ? |
-| **Démarche** | 1) Génération procédurale de tunnels, 2) exploration par systèmes multi-agents (Mesa), 3) apprentissage d'une stratégie par reinforcement learning, comparée aux approches classiques. |
-| **Ma partie** | Modéliser l'exploration comme un problème de RL : observations, actions, transitions et **fonction de récompense**, puis la boucle complète création → vérification → entraînement PPO → évaluation. |
+| **Contexte** | Mines, grottes, réseaux souterrains : des milieux sans GPS, inconnus et dangereux, où des drones doivent explorer de façon autonome. |
+| **Question** | Quelle stratégie permet à un ou plusieurs drones de couvrir le plus vite possible un tunnel qu'ils ne connaissent pas ? |
+| **Démarche** | ① Générer automatiquement des tunnels variés → ② les explorer avec des stratégies multi-agents → ③ apprendre une stratégie par renforcement → comparer le tout par des benchmarks. |
+| **Stack** | Python, Mesa et Solara (simulation et visualisation), Gymnasium, MiniGrid, Stable-Baselines3 et PyTorch (RL), NumPy, NetworkX, Matplotlib, pytest, Ruff, GitHub Actions. |
 
-## Ma contribution : formuler l'exploration comme un problème de RL
+```
+ ┌───────────────────────┐     CSV      ┌──────────────────────────┐            ┌────────────────────────┐
+ │ 1. Génération          │ ───────────▶ │ 2. Exploration           │ ─────────▶ │ 3. Benchmarks          │
+ │  automate cellulaire   │  grilles 2D  │  multi-agent (Mesa)      │  mesures   │  couverture, temps,    │
+ │  agents creuseurs      │              │  Trémaux, Pledge, …      │            │  nombre de pas         │
+ └───────────────────────┘              ├──────────────────────────┤            └────────────────────────┘
+                                         │ 3. Apprentissage par     │
+                                         │  renforcement (PPO)      │  ← ma partie
+                                         └──────────────────────────┘
+```
 
-J'ai développé un environnement **Gymnasium** sur mesure, `TunnelExploreEnv`, où un drone évolue dans un tunnel 2D représenté par une grille. L'objectif n'est pas d'atteindre une sortie, mais de **couvrir toutes les zones accessibles**, ce qui rend la conception de la récompense centrale.
+## 1. Génération procédurale de grottes
 
-### Les 4 éléments du problème
+Le module `generation/` produit des tunnels 2D (grilles 50 × 50 par défaut) connectés, fins et lisibles. Deux méthodes ont été développées :
+
+- **Automate cellulaire**, dans l'esprit du *jeu de la vie* de Conway : on part d'une grille aléatoire (70 % de murs), puis à chaque itération l'état d'une cellule évolue selon ses 8 voisines, avec des règles de **naissance** (prolonger un tunnel droit, créer un virage avec une faible probabilité) et de **mort** (contrôle de la largeur des galeries). L'itération s'arrête à **convergence**, quand la grille ne change plus. L'utilisateur peut aussi dessiner des tunnels imposés dans une interface : l'automate les intègre dans sa croissance.
+- **Agents creuseurs** : un ou plusieurs agents avancent dans la roche et creusent en gardant leur direction, tournent, créent des **boucles** et des **branches** selon des probabilités réglables (mode probabiliste) ou des règles déterministes (mode contraint).
+
+Chaque grille est ensuite **vérifiée automatiquement** (une seule composante connexe, aucun bloc ouvert de 2 × 2) et post-traitée : on garde la plus grande composante, ou un agent creuseur **relie les composantes isolées**. Les grilles peuvent être animées pas à pas, affichées et exportées en CSV pour la simulation.
+
+## 2. Exploration multi-agent
+
+Le module `multi_agent/` simule une flotte de drones avec **Mesa** (modèle `Vortex`), visualisée en direct avec **Solara**. La carte des cases déjà explorées est commune à toute la flotte. Plusieurs stratégies ont été proposées et implémentées :
+
+| Stratégie | Principe |
+|---|---|
+| **Aléatoire** | Choix uniforme parmi les cases libres (référence basse) |
+| **Tout droit** | Avance tant que possible, choix aléatoire aux bifurcations |
+| **Non exploré d'abord** | Priorité aux cases jamais visitées, puis tout droit, puis aléatoire, avec retour arrière si bloqué |
+| **Choix équilibré** | Aux intersections, prend la direction la moins utilisée sur ses 20 derniers choix |
+| **Trémaux** | Algorithme classique de résolution de labyrinthe : marque les passages empruntés pour ne jamais les parcourir plus de deux fois |
+| **Pledge** | Garde une direction globale et contourne les obstacles en suivant le mur, avec un compteur de virages qui évite de tourner autour d'un îlot (dossier `multi_agent_pledge/`, testé sur trois labyrinthes pièges) |
+
+Le dossier `benchmark/` compare ces stratégies sur des lots de grottes générées par les deux méthodes : **taux de couverture**, nombre de pas et temps de calcul, ainsi que l'évolution de la proportion de tunnel au fil des itérations de génération.
+
+## 3. Apprentissage par renforcement (ma partie)
+
+En tant que responsable du RL, j'ai formulé l'exploration comme un **processus de décision markovien** et construit toute la chaîne d'apprentissage, de l'environnement à l'évaluation de l'agent.
+
+**Environnement `TunnelExploreEnv` (Gymnasium)** : un drone dans un tunnel en grille, dont la mission n'est pas d'atteindre une sortie mais de **couvrir toute la zone accessible**.
 
 | Élément | Choix de conception |
 |---|---|
-| **Observation** | Dictionnaire combinant une carte globale à 4 canaux (murs, cases libres, cases déjà visitées, position du drone), une vue locale 3×3 autour du drone et le taux d'exploration courant |
-| **Actions** | 4 déplacements discrets (haut, droite, bas, gauche) |
-| **Transitions** | Le drone avance si la case est libre, reste bloqué face à un mur ; chaque nouvelle case est marquée comme explorée. L'épisode se termine quand toute la zone accessible est couverte, ou est tronqué après un nombre maximal de pas |
-| **Récompense** | Voir ci-dessous |
+| **Observation** | Carte globale à 4 canaux (murs, cases libres, cases visitées, position du drone), vue locale 3 × 3, taux d'exploration courant |
+| **Actions** | 4 déplacements discrets |
+| **Transitions** | Déplacement si la case est libre, blocage contre un mur ; fin d'épisode quand toute la zone accessible (calculée par parcours en largeur) est couverte, troncature après un nombre maximal de pas |
+| **Récompense** | **−0,01** par pas (aller vite) · **+1** par nouvelle case découverte (aller vers l'inconnu) · **−0,2** par collision (apprendre la géométrie) · **+10** à l'exploration complète (finir la mission) |
 
-### Le système de récompense
+**Chaîne d'expérimentation**
 
-| Événement | Récompense | Comportement encouragé |
-|---|---:|---|
-| Chaque pas de temps | **−0,01** | Explorer vite, ne pas tourner en rond |
-| Découverte d'une nouvelle case | **+1,0** | Aller vers l'inconnu plutôt que repasser au même endroit |
-| Collision avec un mur ou le bord | **−0,2** | Apprendre la géométrie du tunnel, éviter les chocs |
-| Exploration complète de la zone | **+10,0** | Aller jusqu'au bout de la mission |
+1. Prise en main de l'API Gymnasium sur **MiniGrid** (`reset`, `step`, observations, wrappers d'image).
+2. Environnements de difficulté croissante : couloir simple, tunnel à branches, tunnel en labyrinthe.
+3. Validation automatique avec `check_env` de Stable-Baselines3 et des politiques aléatoires de contrôle.
+4. Entraînement **PPO** avec Stable-Baselines3 : `CnnPolicy` sur l'observation image et `MultiInputPolicy` sur l'observation composée, avec un **extracteur de caractéristiques CNN sur mesure** en PyTorch, adapté aux petites grilles.
+5. Évaluation séparée des modèles sauvegardés et scripts d'inspection qui affichent, pas à pas, l'action, la récompense et le pourcentage exploré.
 
-L'équilibre entre ces termes est le cœur du travail : une pénalité par pas trop forte pousse le drone à s'arrêter tôt, une récompense de découverte trop faible ne suffit pas à le faire sortir des zones déjà connues.
+Le travail RL a été mené sur une branche Git dédiée, isolée du reste du projet, pour expérimenter sans casser la simulation principale. La stratégie Pledge sert de point de comparaison explicable face à l'agent appris.
 
-### La chaîne d'expérimentation
+## Qualité logicielle
 
-```
- MiniGrid EmptyEnv      →   SimpleTunnelEnv      →   check_env (SB3)   →   PPO.learn()   →   évaluation
- (prise en main de          (grille + but +          (compatibilité         (premier           (visualiser le
-  l'API Gymnasium)           agent, obs. image)       vérifiée)              modèle)            comportement)
-```
-
-- Prise en main de l'API Gymnasium (`reset()`, `step()`, observations) sur MiniGrid
-- Environnements custom validés automatiquement (`check_env` de Stable-Baselines3 + tests avec politique aléatoire)
-- Entraînement **PPO** (Stable-Baselines3, politiques `CnnPolicy` et `MultiInputPolicy`), sauvegarde et évaluation séparée des modèles
-- Scripts d'inspection et de rapport qui affichent les observations, les récompenses et le taux d'exploration pas à pas
-
-### Une baseline déterministe : l'algorithme de Pledge
-
-Pour disposer d'un point de comparaison explicable, j'ai aussi intégré à la simulation multi-agent (Mesa) un agent `PledgeDrone` : il garde une direction globale préférée et contourne les obstacles en suivant les murs, avec un compteur de virages qui l'empêche de tourner indéfiniment autour d'un îlot. Il est testé sur trois labyrinthes conçus pour piéger les stratégies naïves (mur isolé, îlot central, obstacles disjoints) et comparé visuellement aux stratégies aléatoire et « tout droit » dans une interface Solara.
-
-## Architecture du projet d'équipe
-
-```
-generation/              Génération procédurale de tunnels (algorithmes, règles, vérification)
-multi_agent/             Simulation multi-agent Mesa, agents (dont PledgeDrone), benchmark, interface Solara
-reinforcement_learning/  Environnements Gymnasium, entraînement et évaluation PPO  ← ma partie
-tests/                   Tests unitaires (générateur, modèle), exécutés en intégration continue
-```
-
-Le travail expérimental a été mené sur une branche Git dédiée, testé sans casser la branche principale, puis intégré une fois validé.
+- Intégration continue **GitHub Actions** : lint et formatage avec **Ruff**, tests unitaires **pytest** du générateur et du modèle multi-agent à chaque push
+- Code modulaire : génération, exploration, RL et benchmarks sont indépendants et communiquent par des fichiers CSV
+- Paramètres centralisés (`generation/config.py`) et reproductibilité par graine aléatoire
 
 ## Lancer le projet
 
 ```bash
 pip install -r requirements.txt
-pip install -r reinforcement_learning/requirements-rl.txt
 
-# Environnement RL
-python reinforcement_learning/check_tunnel_env.py       # vérifie l'environnement
-python reinforcement_learning/random_policy_demo.py     # démo pas à pas
-python reinforcement_learning/train_ppo_tunnel.py       # entraînement PPO
+# Générer et animer une grotte
+python -m generation.main
+
+# Simulation multi-agent avec visualisation
+solara run multi_agent/app.py
+
+# Apprentissage par renforcement
+pip install -r reinforcement_learning/requirements-rl.txt
+python reinforcement_learning/check_tunnel_env.py
+python reinforcement_learning/train_ppo_tunnel.py
 python reinforcement_learning/evaluate_simple_tunnel_ppo.py
 
 # Baseline Pledge
-python multi_agent/create_pledge_envs.py
-python multi_agent/run_pledge_cli.py --env maze_pledge_02_island.csv
-solara run multi_agent/app.py                           # visualisation
+python multi_agent_pledge/create_pledge_envs.py
+python multi_agent_pledge/run_pledge_cli.py --env maze_pledge_02_island.csv
+
+# Tests
+pytest tests/
+```
+
+## Organisation du dépôt
+
+```
+generation/            Génération de grottes : automate cellulaire, agents creuseurs, vérification, animation
+multi_agent/           Simulation Mesa et stratégies d'exploration (algo/), visualisation Solara
+multi_agent_pledge/    Variante de la simulation avec l'agent Pledge et ses labyrinthes de test
+reinforcement_learning/ Environnements Gymnasium, entraînement et évaluation PPO
+benchmark/             Comparaison des stratégies et des méthodes de génération
+tests/                 Tests unitaires (pytest)
 ```
 
 ## Compétences mobilisées
 
-Reinforcement learning (formulation MDP, reward shaping, PPO) · Gymnasium · Stable-Baselines3 · simulation multi-agent (Mesa) · algorithmique d'exploration · démarche de recherche (état de l'art, expérimentation, comparaison) · Python · Git et intégration continue
+Apprentissage par renforcement (MDP, reward shaping, PPO) · Gymnasium, MiniGrid, Stable-Baselines3, PyTorch · systèmes multi-agents (Mesa) · algorithmique d'exploration et de labyrinthes (Trémaux, Pledge) · génération procédurale (automates cellulaires) · démarche de recherche et benchmarking · Python, Git, CI
 
 ## Références
 
 - M. Towers *et al.*, *Gymnasium: A Standard Interface for Reinforcement Learning Environments*, arXiv:2407.17032, 2024.
-- Stable-Baselines3, MiniGrid, Mesa (documentation officielle).
+- J. Schulman *et al.*, *Proximal Policy Optimization Algorithms*, arXiv:1707.06347, 2017.
+- Documentation de Mesa, MiniGrid et Stable-Baselines3.
 
 ## Auteur
 
-**Léo Le Calvé** — élève ingénieur en Télécommunications à l'INSA Lyon · [GitHub](https://github.com/leo09225) · [LinkedIn](https://www.linkedin.com/in/l%C3%A9o-le-calv%C3%A9-b93a1b387/)
+**Léo Le Calvé**, responsable de l'apprentissage par renforcement · élève ingénieur en Télécommunications à l'INSA Lyon · [GitHub](https://github.com/leo09225) · [LinkedIn](https://www.linkedin.com/in/l%C3%A9o-le-calv%C3%A9-b93a1b387/)
 
-Projet réalisé en équipe dans le cadre du PIR (dépôt principal de l'équipe : `leopoldcst/projet_PTIR_13`).
+Projet réalisé en équipe dans le cadre du PIR 13 de l'INSA Lyon.

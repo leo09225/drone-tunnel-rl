@@ -54,16 +54,22 @@ Elle est adaptée pour produire des structures variées et paramétrables.
 
 ### Agent creusant
 
-La méthode par agent creusant simule un agent qui se déplace dans la grille et creuse le tunnel au fur et à mesure.
+La méthode par agent creusant simule un ou plusieurs agents qui se déplacent dans la grille et creusent le tunnel au fur et à mesure.
 
-L'agent :
+Chaque agent :
 
 - démarre dans la grille ;
 - avance cellule par cellule ;
 - garde souvent la même direction pour favoriser les lignes droites ;
 - change parfois de direction selon une probabilité définie ;
+- peut créer des boucles avec une probabilité configurable ;
+- peut créer des branches pour générer des tunnels secondaires ;
 - évite de créer des carrés 2x2 ;
 - maintient une structure connectée, car le tunnel est creusé progressivement.
+
+Cette méthode dispose de deux modes :
+- **Probabilistic** : les décisions du tunnel (virage, boucle, branche) sont basées sur des probabilités.
+- **Constrained** : les mouvements sont plus contraints selon des règles déterministes.
 
 Cette méthode donne des tunnels plus contrôlés, souvent plus linéaires, et limite les formes trop chaotiques.
 
@@ -81,6 +87,26 @@ Ces vérifications sont regroupées dans le module de vérification du tunnel.
 
 ---
 
+## Post-traitement
+
+Après la génération, le programme peut appliquer un post-traitement selon le mode configuré :
+
+- **largest_component** : conserve uniquement la plus grande composante connectée et supprime les tunnels isolés.
+- **connect_components** : connecte automatiquement toutes les composantes disconnectées en utilisant un agent creusant.
+- **none** : aucun post-traitement, la grille générée est conservée tel quel.
+
+Le post-traitement se configure via le paramètre `POST_PROCESSING_MODE` dans `config.py`.
+
+---
+
+## Automate cellulaire avec contraintes utilisateur
+
+Il est possible de forcer l'automate cellulaire à préserver certains tunnels imposés manuellement.
+
+Lorsque `CA_USE_FIXED_TUNNELS` est `True`, une interface interactive s'ouvre permettant de dessiner des tunnels avant de lancer la génération. L'automate cellulaire respectera ces tunnels imposés et les intégrera dans sa croissance.
+
+---
+
 ## Fichier `config.py`
 
 Le fichier `config.py` permet de modifier les paramètres principaux du générateur.
@@ -95,21 +121,40 @@ Le fichier `config.py` permet de modifier les paramètres principaux du généra
 | `SAVE` | Sauvegarde la grille générée dans un fichier `.csv` |
 | `VIEW` | Affiche la grille finale |
 | `ANIMATION` | Affiche l'animation de la génération |
-| `SHOW_LONGEST_PATH` | Conserve ou affiche la plus grande composante connectée |
+
+### Paramètres de post-traitement
+
+| Paramètre | Description |
+|-----------|-------------|
+| `POST_PROCESSING_MODE` | Mode de post-traitement : `"largest_component"` (garde la plus grande composante), `"connect_components"` (connecte toutes les composantes avec un agent) ou `"none"` (aucun) |
+| `CA_USE_FIXED_TUNNELS` | `True` : ouvre une interface pour imposer des tunnels manuels avant la génération ; `False` : génération classique |
 
 ### Paramètres de l'automate cellulaire
 
 | Paramètre | Description |
 |-----------|-------------|
-| `ITERATION` | Nombre d'itérations de l'automate |
-| `WALL_PERCENTAGE` | Proportion initiale de murs |
+| `ITERATION` | Nombre d'itérations minimales de l'automate |
+| `WALL_PERCENTAGE` | Proportion initiale de murs (0 à 1) |
+| `TUNNEL_CONTINUITY_PROBA` | Probabilité de prolonger un tunnel droit |
+| `BIRTH_CORNER_PROBA` | Probabilité de créer un virage |
+| `DIGGER_PROBA` | Probabilité de générer une cellule tunnel isolée |
+| `ENABLE_BIRTH_CONTINUITY` | Active la règle de continuité des tunnels |
+| `ENABLE_BIRTH_CORNER` | Active la règle de création de virages |
+| `ENABLE_DIGGER` | Active la règle de digger |
+| `ENABLE_DRAUGHTBOARD` | Active la règle d'échiquier (damier) |
+| `MIN_ALIVE_NEIGHBORS` | Seuil maximum de voisins vivants pour autoriser une naissance |
 
 ### Paramètres de l'agent creusant
 
 | Paramètre | Description |
 |-----------|-------------|
-| `AGENT_STEPS` | Nombre de pas de l'agent |
+| `AGENT_MODE` | Mode de l'agent : `"probabilistic"` (décisions aléatoires) ou `"constrained"` (mouvements contraints) |
+| `AGENT_STEPS` | Nombre d'étapes de l'agent creusant |
 | `AGENT_TURN_PROBABILITY` | Probabilité de changement de direction |
+| `AGENT_LOOP_PROBABILITY` | Probabilité de créer une boucle |
+| `AGENT_BRANCH_PROBABILITY` | Probabilité de créer une branche |
+| `TARGET_LOOPS` | Nombre de boucles souhaitées dans le tunnel |
+| `AGENT_COUNT` | Nombre d'agents creusants à déployer |
 
 ---
 
@@ -118,10 +163,21 @@ Le fichier `config.py` permet de modifier les paramètres principaux du généra
 Depuis la racine du repository :
 
 ```bash
-python -m generation.generator
+python -m generation.main
 ```
 
 La méthode dépend de `GENERATION_METHOD` dans `config.py`.
+
+---
+
+## Animation
+
+L'animation de la génération peut être activée en mettant `ANIMATION = True` dans `config.py`.
+
+- **Automate cellulaire** : affiche chaque itération de l'automate cellulaire en temps réel avec les transitions d'état.
+- **Agent creusant** : visualise le déplacement de l'agent (ou des agents) et la progression du creusage tunnel par tunnel.
+
+Les animations sont affichées dans une fenêtre matplotlib et permettent de comprendre le processus de génération étape par étape.
 
 ---
 
